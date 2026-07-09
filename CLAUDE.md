@@ -21,13 +21,15 @@ bash synology-upload-folder-request.sh --host [HOST] --sharing_id [SHARING_ID] -
 - `-U, --uploader_name` — uploader name reported to Synology
 - `-j, --jobs` — parallel upload workers (default: 4)
 
-There is no build, lint, or test tooling in this repo — it's a standalone script meant to be run directly with bash (requires `curl`, `xargs`, and GNU `stat`/`date`, i.e. a Linux-like environment or WSL/Git Bash with coreutils).
+There is no build, lint, or test tooling in this repo — it's a standalone script meant to be run directly with bash (requires `curl`, `xargs`, `awk`, and GNU `stat`/`date`, i.e. a Linux-like environment or WSL/Git Bash with coreutils).
 
 ## Architecture
 
 The script authenticates once into a shared cookie jar, then uploads every file in a single parallel pass (`upload_one`, via `xargs -P "$JOBS"`). There is no directory-tree pre-creation step — since Synology file requests are flat drop boxes, there's nothing to recreate remotely. File size and mtime (`date -r "$FILE" +%s%3N`) are sent alongside content, with `overwrite=true`.
 
 Key mechanics:
-- All shared state (`FOLDER`, `HOST`, `SHARING_ID`, cookie jar path, result dir) is `export`-ed, and `upload_one` is `export -f`'d, since workers run in `xargs`-spawned subshells.
-- Failures are recorded as files in a temp `RESULT_DIR` rather than via shared variables, since parallel subshells can't mutate the parent's state — presence of any file there signals failure.
+- All shared state (`FOLDER`, `HOST`, `SHARING_ID`, cookie jar path, result dir, `TOTAL`, `UPLOAD_START_MS`) is `export`-ed, and `upload_one`/`human_size`/`human_speed` are `export -f`'d, since workers run in `xargs`-spawned subshells.
+- Per-file outcomes are recorded as files in a temp `RESULT_DIR` rather than via shared variables, since parallel subshells can't mutate the parent's state: `fail.*` files (containing the relative path) signal failures, `ok.*` files (containing the byte size) signal successes and back the running/final speed stats.
+- Each successful upload times itself around the `curl` call and prints its own size/speed plus a running total (files done, bytes uploaded so far, running average speed) computed by re-scanning `RESULT_DIR`'s `ok.*`/`fail.*` files — there's no locking, since file creation is atomic and the recompute is cheap at the scale this script targets.
+- The final summary (files uploaded, total size, elapsed time, average speed) uses wall-clock time between `UPLOAD_START_MS` (set before the `xargs` pass) and the moment `xargs` returns, divided into the summed byte count from `ok.*` files.
 - Cleanup of the cookie jar and result dir is handled by a `trap ... EXIT`.

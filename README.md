@@ -6,7 +6,7 @@ File requests are flat drop boxes on the Synology side, so subfolder structure i
 
 ## Requirements
 
-A Linux-like environment with `bash`, `curl`, `xargs`, and GNU `stat`/`date` (e.g. Linux, WSL, or Git Bash with coreutils on Windows).
+A Linux-like environment with `bash`, `curl`, `xargs`, `awk`, and GNU `stat`/`date` (e.g. Linux, WSL, or Git Bash with coreutils on Windows).
 
 ## Usage
 
@@ -35,3 +35,23 @@ bash synology-upload-folder-request.sh \
   --folder ./photos \
   --jobs 8
 ```
+
+## Output
+
+Each successful upload prints its own size and speed, plus a running total across all files uploaded so far:
+
+```
+OK: 'IMG_0001.jpg' (2.30 MB @ 4.10 MB/s) [12/50 done, 28.40 MB uploaded, running avg 3.85 MB/s]
+```
+
+When all uploads finish, a final summary reports the file count, total size, elapsed time, and average speed:
+
+```
+Summary:
+  Files uploaded:  50 / 50
+  Total size:      118.42 MB
+  Elapsed time:    30.712s
+  Average speed:   3.86 MB/s
+```
+
+If any files failed, they're listed below the summary and the script exits with a non-zero status.
